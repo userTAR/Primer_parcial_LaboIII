@@ -1,30 +1,44 @@
 <?php
 namespace App\Controller;
-require_once "./models/Criptomoneda.php";
+require_once __DIR__  ."/../models/Criptomoneda.php";
+require_once __DIR__ ."/../controllers/VentaController.php";
 
-use \app\Models\Criptomoneda as Criptomoneda;
+use App\Controller\VentaController;
+use App\Models\Criptomoneda as Criptomoneda;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 
 class CriptomonedaController
 {
+
+    //modificar la parte de la imagen
     public function Alta($request, $response, $args)
     {
         $parametros = $request->getParsedBody();
+        $archivos = $request->getUploadedFiles();
 
         $precio = $parametros['precio'];
         $nombre = $parametros['nombre'];
         $nacionalidad = $parametros['nacionalidad'];
-
-        //manejo foto:
-        $destino = "./resources/fotosCriptomonedas/" .$nombre .pathinfo($parametros['foto'],PATHINFO_EXTENSION);
-        move_uploaded_file($parametros['foto']['tmp_name'], $destino);
-
-
+        
+        //recuperacion de foto y seteado de path
+        $nombreViejo = $archivos["foto"]->getClientFilename();
+        $destino = __DIR__ ."/../fotos/";
+        $extension = explode(".",$nombreViejo);
 
         // Creamos Criptomoneda
         $hr = new Criptomoneda();
+        
+        //manejo foto:
+        if(VentaController::ValidarImagen($extension[1]))
+        {
+            $nuevoNombre = $nombre."." .$extension[1];
+            $archivos["foto"]->MoveTo( $destino .$nuevoNombre);
+            $hr->foto = $nuevoNombre;
+        }
+        
         $hr->precio = $precio;
         $hr->nombre = $nombre;
-        $hr->foto = $destino;
         $hr->nacionalidad = $nacionalidad;
 
         if($hr->save())
@@ -69,38 +83,50 @@ class CriptomonedaController
     }
 
     
-    public function ModificarUno($request, $response, $args)
+    public function ModificarUno(Request $request, Response $response, $args) : Response
     {
-        $parametros = $request->getParsedBody();
+        
 
+        $parametros = $request->getParsedBody();
+        $archivos = $request->getUploadedFiles();
+        
         $id = $parametros["id"];
         $nombre = $parametros["nombre"];
         $precio = $parametros["precio"];
         $nacionalidad = $parametros["nacionalidad"];
-        $foto = isset($parametros["foto"]) ? $parametros['foto'] : null;
-
-        $hr = Criptomoneda::find($id);
-        $hr->nombre = $nombre;
-        $hr->nacionalidad = $nacionalidad;
-        $hr->precio = $precio;
-        if($foto != null)
+        
+        
+        $hr = new Criptomoneda();
+        $cripto = $hr->find($id);
+        $cripto->nombre = $nombre;
+        $cripto->nacionalidad = $nacionalidad;
+        $cripto->precio = $precio;
+        
+        if($archivos != null)
         {
-            $path = "./resources/fotosCriptomonedas/" .$nombre .pathInfo($foto, PATHINFO_EXTENSION);
-            if(file_exists($path))
+            //recuperacion de foto y seteado de path
+            $nombreViejo = $archivos["foto"]->getClientFilename();
+            $destino = __DIR__ ."/../fotos/";
+            $extension = explode(".",$nombreViejo);
+            $nuevoNombre = $nombre."." .$extension[1];
+
+            if(VentaController::ValidarImagen($extension[1]))
             {
-                rename($path, "./resources/fotosCriptomonedas/backup/" .$nombre .pathinfo($foto,PATHINFO_EXTENSION));
-                move_uploaded_file($foto['tmp_name'],$path);
-                $hr->foto = $path;
-            }
-            else
-            {
-                unlink($hr->foto);
-                move_uploaded_file($foto['tmp_name'],$path);
-                $hr->foto = $path;
+                //si la foto ya existe se cambia al backup
+                if(file_exists(__DIR__ ."/../fotos/" .$nuevoNombre))
+                {
+                    rename(__DIR__ ."/../fotos/" .$nuevoNombre, __DIR__ ."/../fotos/backup/" .$nuevoNombre);
+                    $archivos["foto"]->MoveTo( $destino .$nuevoNombre);
+                }
+                //si no, se mueve y se deja la anterior en el mismo repo
+                else
+                {
+                    $archivos["foto"]->MoveTo( $destino .$nuevoNombre);
+                }
             }
         }
 
-        if($hr->save())
+        if($cripto->save())
             $payload = json_encode(array("mensaje" => "Éxito en la modificación del Criptomoneda"));
         else
             $payload = json_encode(array("mensaje" => "Error en la modificación del Criptomoneda"));
@@ -110,14 +136,13 @@ class CriptomonedaController
 
     public function BorrarUno($request, $response, $args)
     {
-        $parametros = $request->getParsedBody();
+        $criptomonedaId = $args["id_criptomoneda"];
 
-        $CriptomonedaId = $parametros['id_Criptomoneda'];
-
-        $hr = Criptomoneda::find($CriptomonedaId);
-        $hr->delete();
-
-        $payload = json_encode(array("mensaje" => "Criptomoneda borrado con exito"));
+        $hr = Criptomoneda::find($criptomonedaId);
+        if($hr->delete())
+            $payload = json_encode(array("mensaje" => "Criptomoneda borrado con exito"));
+        else
+            $payload = json_encode(array("mensaje" => "Error en el borrado de la criptomoneda"));
         $response->getBody()->write($payload);
         return $response->withHeader('Content-Type', 'application/json');
     }

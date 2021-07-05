@@ -1,47 +1,50 @@
 <?php
 namespace App\Controller;
 
-require_once "../../vendor/autoload.php";
 
+
+use Exception as GlobalException;
 use Firebase\JWT\JWT;
-use Exception;
 use Firebase\JWT\ExpiredException;
+use Firebase\JWT\SignatureInvalidException;
 
 class Token
 {
-    private static $key = "JasonWebToken";
+    private static $password = "passJWT";
+    private static $encode = array('HS256');
     
     public static function CrearJWT($usuario)
     {
+        $data = array("mail" => $usuario->mail, "tipo" => $usuario->tipo);
+        $time = time();
         $payload = array(
-            'id' => $usuario->id,
-            'mail' => $usuario->mail,
-            'perfil' => $usuario->tipo_perfil,
+            'iat'=> $time,
+            'exp'=> $time + (20*60),
+            'data' => $data,    
         );
-
-        return json_encode(JWT::encode($payload, self::$key,"HS256"));
-    }
-
-    public static function ObtenerPayLoad($token)
-    {
-        if (empty($token) || $token == null) {
-            throw new Exception("El token esta vacio.");
-        }
-        return JWT::decode($token, self::$key, "HS256");
+        return JWT::encode($payload,self::$password,self::$encode[0]);
     }
 
     public static function Verificar($token){
         if(empty($token)|| $token=="")
-            throw new Exception("El token esta vacio.");
-        try {
-            $decodificado = JWT::decode(
-            $token,
-            self::$key,
-            "HS256"
-            );
-        } catch (ExpiredException $e){
-           throw new Exception("Clave fuera de tiempo");
+            throw new GlobalException("El token esta vacio.");
+        try
+        {
+            $decodificado = self::ObtenerDatos($token);
         }
+        catch (ExpiredException $e)
+        {
+            throw new GlobalException("Clave fuera de tiempo");
+        }
+        catch (SignatureInvalidException $e)
+        {
+            throw new GlobalException("Token incorrecto");
+        }
+        return $decodificado;
+    }
+
+    private static function ObtenerDatos($token){
+        return JWT::decode($token, self::$password, self::$encode)->data;
     }
 
 }

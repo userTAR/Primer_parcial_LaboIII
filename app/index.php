@@ -13,16 +13,16 @@ require_once '../vendor/autoload.php';
 require_once "./middlewares/AutentificadorMW.php";
 require_once './controllers/UsuarioController.php';
 require_once './controllers/CriptomonedaController.php';
-require_once './controllers/VentaConstroller.php';
-/* require_once "./controllers/ConsultaController.php"; */
+require_once "./controllers/VentaController.php";
+require_once "./controllers/ConsultaController.php";
 
-use \App\Middleware\AdminMiddleware;
+
 use \App\Middleware\AutentificadorMW;
-use \App\Middleware\VendedorMiddleware;
 use \App\Controller\CriptomonedaController;
 use \App\Controller\UsuarioController;
 use \App\Controller\VentaController;
-use \App\Controller\Consultas;
+use App\Models\Venta;
+use App\Controller\Consultas;
 
 // Load ENV
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
@@ -57,34 +57,41 @@ $capsule->bootEloquent();
 
 
 // Routes
-//1
 $app->post('/altaUsuario', UsuarioController::class .':Alta');
+//1
 $app->post('/verificarUsuario', UsuarioController::class . ':VerificarUsuario');
+
 $app->group('/criptomoneda', function (RouteCollectorProxy $group){
     //2
-    $group->post('/alta', CriptomonedaController::class . ':Alta')->add(new AutentificadorMW("Admin")); // falta la parte de JWT ACA
+    $group->post('/alta', CriptomonedaController::class . ':Alta')->add(new AutentificadorMW("admin"));
     //3
     $group->get('/listarTodo', CriptomonedaController::class .':TraerTodos'); 
     //4
     $group->get('/listadoTipo/{nacionalidad}', CriptomonedaController::class .':TraerPorNacionalidad');
     //5
-    $group->get('/traerUna/{id_Criptomoneda}', CriptomonedaController::class .':TraerUno')->add(new AutentificadorMW("Cliente"));
-    //6
-    /* $group->delete('/borrarUna/{id_Criptomoneda}', CriptomonedaController::class .':BorrarUno')->add(new AutentificadorMW("Administrador"));
-    //8
-    $group->put('/modificar', CriptomonedaController::class . ':ModificarUno')->add(new AutentificadorMW("Vendedor")); */   
+    $group->get('/traerUna/{id_criptomoneda}', CriptomonedaController::class .':TraerUno')->add(new AutentificadorMW("cliente"));
+    //9
+    $group->delete('/borrarUna/{id_criptomoneda}', CriptomonedaController::class .':BorrarUno')->add(new AutentificadorMW("admin"));
+    //10
+    $group->put('/modificar', CriptomonedaController::class . ':ModificarUno')->add(new AutentificadorMW("admin"));   
 });
-//10
 $app->group('/venta', function (RouteCollectorProxy $group){
+    //6
+    $group->post('/alta', VentaController::class . ':AltaDeVenta')->add(new AutentificadorMW("cliente"));
     //7
-    $group->post('/alta', VentaController::class . ':AltaDeVenta')->add(new AutentificadorMW("Cliente"));
-    //a
-    /* $group->get('/traerVentas/{id_empleado}', Consultas::class . ':VentasEmpleado');
-    //b
-    $group->get('/criptomonedaMasVendida', Consultas::class .':CriptomonedaMasVentas'); */
+    $group->get('/traerVentas/fecha/nacionalidad', VentaController::class . ':ReturnVentasAlemania_Fecha')->add(new AutentificadorMW("admin"));
+    //8
+    $group->get('/traerUsuarios/criptoEspecifica/{nombre_cripto}', UsuarioController::class .':ReturnUsuarios_Compraron_Eterium')->add(new AutentificadorMW("admin"));
 });
-//11
-/* $app->get('/criptomonedaPdf/{id_Criptomoneda', Consultas::class . ':GenerarPdfPorID');
- */
+$app->group('/pdf', function (RouteCollectorProxy $group){
+    //11
+    $group->get('/ventas', Consultas::class . ':ventasPdf')->add(new AutentificadorMW("admin"));
+    //12
+    $group->get('/mayorImporte', Consultas::class . ':PdfCriptoMayorImporte')->add(new AutentificadorMW("admin"));
+    //13
+    $group->get('/criptoMasTransacciones', Consultas::class . ':PdfCriptoMasTransacciones')->add(new AutentificadorMW("admin"));
+});
+//14
+$app->post('/csv', Consultas::class . ':GenerarCSV')->add(new AutentificadorMW("admin"));
 
 $app->run();
